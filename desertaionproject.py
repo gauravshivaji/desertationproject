@@ -1,11 +1,12 @@
 import streamlit as st
+import yfinance as yf
 import pandas as pd
 import numpy as np
-import yfinance as yf
 import ta
 
-
-# ---------------------- CONFIG ----------------------
+# ----------------------
+# CONFIG & FULL TICKERS LIST
+# ----------------------
 NIFTY500_TICKERS = [
     "ABB.NS","ACC.NS","ADANIENT.NS","ADANIGREEN.NS","ADANIPORTS.NS",
     "ADANITRANS.NS","ALKEM.NS","AMARAJABAT.NS","AMBER.NS","APOLLOHOSP.NS",
@@ -32,16 +33,12 @@ NIFTY500_TICKERS = [
     "ULTRACEMCO.NS","WIPRO.NS","YESBANK.NS","ZEEL.NS"
 ]
 
-# ---------------------- FUNCTIONS ----------------------
+# ----------------------
+# DATA & FEATURE FUNCTIONS
+# ----------------------
 
-@st.cache_data(show_spinner=False)
 def download_data(ticker, period="2y", interval="1d"):
-    """Download historical data for a ticker."""
-    try:
-        df = yf.download(ticker, period=period, interval=interval, progress=False)
-        return df if not df.empty else None
-    except Exception:
-        return None
+    return yf.download(ticker, period=period, interval=interval, progress=False)
 
 def compute_features(df, sma_windows=(20, 50, 200), support_window=30):
     df = df.copy()
@@ -57,11 +54,7 @@ def compute_features(df, sma_windows=(20, 50, 200), support_window=30):
 
 def get_latest_features(ticker, sma_windows=(20,50,200), support_window=30):
     df = download_data(ticker)
-    if df is None or df.empty:
-        return None
-    df = compute_features(df, sma_windows, support_window).dropna()
-    if df.empty:
-        return None
+    df = compute_features(df, sma_windows, support_window)
     latest = df.iloc[-1]
     return {
         "Ticker": ticker,
@@ -75,55 +68,12 @@ def get_latest_features(ticker, sma_windows=(20,50,200), support_window=30):
         "Bearish_Div": latest["Bearish_Div"],
     }
 
-def get_features_for_all_stocks(tickers, sma_windows=(20, 50, 200), support_window=30):
-    results = []
+def get_features_for_all_stocks(tickers, sma_windows=(20,50,200), support_window=30):
+    return pd.DataFrame([get_latest_features(t, sma_windows, support_window) for t in tickers])
 
-    # Batch download for all tickers at once
-    data = yf.download(tickers, period="2y", interval="1d", group_by='ticker', progress=False)
-
-    # If only one ticker, Yahoo doesn't create multi-level columns
-    if isinstance(data.columns, pd.MultiIndex):
-        for ticker in tickers:
-            try:
-                df_ticker = data[ticker].dropna()
-                if df_ticker.empty:
-                    continue
-                df_ticker = compute_features(df_ticker, sma_windows, support_window).dropna()
-                if df_ticker.empty:
-                    continue
-                latest = df_ticker.iloc[-1]
-                results.append({
-                    "Ticker": ticker,
-                    "Close": latest["Close"],
-                    "RSI": latest["RSI"],
-                    "Support": latest["Support"],
-                    "SMA20": latest.get("SMA20", np.nan),
-                    "SMA50": latest.get("SMA50", np.nan),
-                    "SMA200": latest.get("SMA200", np.nan),
-                    "Bullish_Div": latest["Bullish_Div"],
-                    "Bearish_Div": latest["Bearish_Div"],
-                })
-            except Exception:
-                continue
-    else:
-        # Single ticker case
-        df_ticker = compute_features(data, sma_windows, support_window).dropna()
-        if not df_ticker.empty:
-            latest = df_ticker.iloc[-1]
-            results.append({
-                "Ticker": tickers[0],
-                "Close": latest["Close"],
-                "RSI": latest["RSI"],
-                "Support": latest["Support"],
-                "SMA20": latest.get("SMA20", np.nan),
-                "SMA50": latest.get("SMA50", np.nan),
-                "SMA200": latest.get("SMA200", np.nan),
-                "Bullish_Div": latest["Bullish_Div"],
-                "Bearish_Div": latest["Bearish_Div"],
-            })
-
-    return pd.DataFrame(results)
-
+# ----------------------
+# PREDICTION LOGIC
+# ----------------------
 
 def predict_buy_sell(df, rsi_buy=30, rsi_sell=70):
     results = df.copy()
@@ -142,13 +92,16 @@ def predict_buy_sell(df, rsi_buy=30, rsi_sell=70):
     )
     return results
 
-# ---------------------- STREAMLIT UI ----------------------
+# ----------------------
+# STREAMLIT INTERFACE
+# ----------------------
 
-st.set_page_config(page_title="Nifty500 Buy/Sell Predictor", layout="wide")
+st.set_page_config(page_title="Nifty500 Interactive Stock Predictor", layout="wide")
 st.title("📊 Nifty500 Interactive Stock Buy/Sell Predictor")
 
 st.sidebar.header("Settings")
-selected_tickers = st.sidebar.multiselect("Select stocks", NIFTY500_TICKERS, default=NIFTY500_TICKERS[:5])
+
+selected_tickers = st.sidebar.multiselect("Select stocks", NIFTY500_TICKERS, default=NIFTY500_TICKERS[:10])
 sma_w1 = st.sidebar.number_input("SMA Window 1", 5, 250, 20)
 sma_w2 = st.sidebar.number_input("SMA Window 2", 5, 250, 50)
 sma_w3 = st.sidebar.number_input("SMA Window 3", 5, 250, 200)
@@ -157,36 +110,26 @@ rsi_buy = st.sidebar.slider("RSI Buy Threshold", 10, 50, 30)
 rsi_sell = st.sidebar.slider("RSI Sell Threshold", 50, 90, 70)
 
 if st.sidebar.button("Run Analysis"):
-    with st.spinner("📥 Fetching data... This can take time for many tickers."):
+    with st.spinner("📥 Fetching data and calculating indicators... This may take some time for many tickers."):
         feats = get_features_for_all_stocks(selected_tickers, (sma_w1, sma_w2, sma_w3), support_window)
-        if feats.empty:
-            st.error("No data available for selected tickers.")
-        else:
-            preds = predict_buy_sell(feats, rsi_buy, rsi_sell)
+        preds = predict_buy_sell(feats, rsi_buy, rsi_sell)
 
-            col1, col2 = st.columns(2)
-            with col1:
-                st.subheader("✅ BUY Signals")
-                st.dataframe(preds[preds["Buy_Point"]])
-            with col2:
-                st.subheader("❌ SELL Signals")
-                st.dataframe(preds[preds["Sell_Point"]])
+    col1, col2 = st.columns(2)
+    with col1:
+        st.subheader("✅ BUY Signals")
+        st.dataframe(preds[preds["Buy_Point"]])
+    with col2:
+        st.subheader("❌ SELL Signals")
+        st.dataframe(preds[preds["Sell_Point"]])
 
-            st.download_button("📥 Download Full Results", preds.to_csv(index=False).encode(), "nifty500_signals.csv", "text/csv")
+    st.download_button("📥 Download Full Results", preds.to_csv(index=False).encode(), "nifty500_signals.csv", "text/csv")
 
-            st.markdown("---")
-            ticker_chart = st.selectbox("📉 View Chart for", selected_tickers)
-            if ticker_chart:
-                chart_df = download_data(ticker_chart, period="6mo", interval="1d")
-                if chart_df is not None and not chart_df.empty:
-                    chart_df["RSI"] = ta.momentum.RSIIndicator(chart_df["Close"], window=14).rsi()
-                    st.line_chart(chart_df[["Close"]])
-                    st.line_chart(chart_df[["RSI"]])
-                else:
-                    st.warning(f"No chart data for {ticker_chart}")
+    st.markdown("---")
+    ticker_chart = st.selectbox("📉 View Chart for", selected_tickers)
+    if ticker_chart:
+        df = yf.download(ticker_chart, period="6mo", interval="1d", progress=False)
+        df["RSI"] = ta.momentum.RSIIndicator(df["Close"], window=14).rsi()
+        st.line_chart(df[["Close"]])
+        st.line_chart(df[["RSI"]])
 
 st.markdown("⚠ Disclaimer: This is for educational purposes only, not financial advice.")
-
-
-
-
