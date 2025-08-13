@@ -45,22 +45,46 @@ def download_data_multi(tickers, period="2y", interval="1d"):
         st.error(f"Download error: {e}")
         return None
 
+def prepare_close_series(df):
+    """Ensure Close column is a numeric 1D Series."""
+    if isinstance(df["Close"], pd.DataFrame):
+        df["Close"] = df["Close"].iloc[:, 0]
+    df["Close"] = pd.to_numeric(df["Close"], errors="coerce")
+    df = df.dropna(subset=["Close"])
+    return df
+
 def compute_features(df, sma_windows=(20, 50, 200), support_window=30):
     df = df.copy()
-    df["RSI"] = ta.momentum.RSIIndicator(df["Close"], window=14).rsi()
+    df = prepare_close_series(df)
+    if df.empty:
+        return df
 
+    # RSI
+    try:
+        df["RSI"] = ta.momentum.RSIIndicator(df["Close"], window=14).rsi()
+    except Exception as e:
+        st.warning(f"RSI calc error: {e}")
+        df["RSI"] = np.nan
+
+    # SMA
     for win in sma_windows:
-        df[f"SMA{win}"] = df["Close"].rolling(window=win).mean()
+        df[f"SMA{win}"] = df["Close"].rolling(window=win, min_periods=1).mean()
 
-    df["Support"] = df["Close"].rolling(window=support_window).min()
+    # Support
+    df["Support"] = df["Close"].rolling(window=support_window, min_periods=1).min()
+
+    # Divergence
     df["RSI_Direction"] = df["RSI"].diff(5)
     df["Price_Direction"] = df["Close"].diff(5)
     df["Bullish_Div"] = (df["RSI_Direction"] > 0) & (df["Price_Direction"] < 0)
     df["Bearish_Div"] = (df["RSI_Direction"] < 0) & (df["Price_Direction"] > 0)
+
     return df
 
 def get_latest_features_for_ticker(ticker_df, sma_windows, support_window):
     df = compute_features(ticker_df, sma_windows, support_window)
+    if df.empty:
+        return None
     latest = df.iloc[-1]
     return {
         "Close": latest["Close"],
@@ -85,8 +109,9 @@ def get_features_for_all(tickers, sma_windows, support_window):
             if ticker_df.empty:
                 continue
             feats = get_latest_features_for_ticker(ticker_df, sma_windows, support_window)
-            feats["Ticker"] = ticker
-            features_list.append(feats)
+            if feats:
+                feats["Ticker"] = ticker
+                features_list.append(feats)
         except Exception as e:
             st.warning(f"Skipping {ticker}: {e}")
             continue
@@ -149,8 +174,9 @@ if run_btn:
                 chart_df = yf.download(ticker_chart, period="6mo", interval="1d", progress=False)
                 if not chart_df.empty:
                     chart_df = compute_features(chart_df, (sma_w1, sma_w2, sma_w3), support_window)
-                    st.line_chart(chart_df[["Close", f"SMA{sma_w1}", f"SMA{sma_w2}", f"SMA{sma_w3}"]])
-                    st.line_chart(chart_df[["RSI"]])
+                    if not chart_df.empty:
+                        st.line_chart(chart_df[["Close", f"SMA{sma_w1}", f"SMA{sma_w2}", f"SMA{sma_w3}"]])
+                        st.line_chart(chart_df[["RSI"]])
 
             st.download_button(
                 "📥 Download Results",
