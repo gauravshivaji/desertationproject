@@ -45,16 +45,11 @@ def download_data_multi(tickers, period="2y", interval="1d"):
         return None
 
 def prepare_close_series(df):
-    """Ensure Close is numeric 1D Series regardless of Yahoo multi/single format."""
+    """Ensure Close is a clean 1D Series regardless of Yahoo multi/single format."""
     if "Close" not in df.columns:
         return df
-
     if isinstance(df["Close"], pd.DataFrame):
-        # If multiple columns (multi-ticker), pick first column
         df["Close"] = df["Close"].iloc[:, 0]
-
-    # Now force numeric
-    df["Close"] = pd.to_numeric(df["Close"], errors="coerce")
     return df.dropna(subset=["Close"])
 
 def compute_features(df, sma_windows=(20, 50, 200), support_window=30):
@@ -77,7 +72,6 @@ def compute_features(df, sma_windows=(20, 50, 200), support_window=30):
     df["Price_Direction"] = df["Close"].diff(5)
     df["Bullish_Div"] = (df["RSI_Direction"] > 0) & (df["Price_Direction"] < 0)
     df["Bearish_Div"] = (df["RSI_Direction"] < 0) & (df["Price_Direction"] > 0)
-
     return df
 
 def get_latest_features_for_ticker(ticker_df, sma_windows, support_window):
