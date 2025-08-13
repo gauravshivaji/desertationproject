@@ -1,8 +1,7 @@
 import streamlit as st
 import pandas as pd
 import numpy as np
-import yfinance as yf
-import ta
+
 
 
 # ---------------------- CONFIG ----------------------
@@ -186,5 +185,6 @@ if st.sidebar.button("Run Analysis"):
                     st.warning(f"No chart data for {ticker_chart}")
 
 st.markdown("⚠ Disclaimer: This is for educational purposes only, not financial advice.")
+
 
 
