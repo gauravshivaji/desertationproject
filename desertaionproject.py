@@ -75,13 +75,55 @@ def get_latest_features(ticker, sma_windows=(20,50,200), support_window=30):
         "Bearish_Div": latest["Bearish_Div"],
     }
 
-def get_features_for_all_stocks(tickers, sma_windows=(20,50,200), support_window=30):
+def get_features_for_all_stocks(tickers, sma_windows=(20, 50, 200), support_window=30):
     results = []
-    df = yf.download(tickers, period="2y", interval="1d", group_by='ticker', progress=False)
 
-        if feat is not None:
-            results.append(feat)
+    # Batch download for all tickers at once
+    data = yf.download(tickers, period="2y", interval="1d", group_by='ticker', progress=False)
+
+    # If only one ticker, Yahoo doesn't create multi-level columns
+    if isinstance(data.columns, pd.MultiIndex):
+        for ticker in tickers:
+            try:
+                df_ticker = data[ticker].dropna()
+                if df_ticker.empty:
+                    continue
+                df_ticker = compute_features(df_ticker, sma_windows, support_window).dropna()
+                if df_ticker.empty:
+                    continue
+                latest = df_ticker.iloc[-1]
+                results.append({
+                    "Ticker": ticker,
+                    "Close": latest["Close"],
+                    "RSI": latest["RSI"],
+                    "Support": latest["Support"],
+                    "SMA20": latest.get("SMA20", np.nan),
+                    "SMA50": latest.get("SMA50", np.nan),
+                    "SMA200": latest.get("SMA200", np.nan),
+                    "Bullish_Div": latest["Bullish_Div"],
+                    "Bearish_Div": latest["Bearish_Div"],
+                })
+            except Exception:
+                continue
+    else:
+        # Single ticker case
+        df_ticker = compute_features(data, sma_windows, support_window).dropna()
+        if not df_ticker.empty:
+            latest = df_ticker.iloc[-1]
+            results.append({
+                "Ticker": tickers[0],
+                "Close": latest["Close"],
+                "RSI": latest["RSI"],
+                "Support": latest["Support"],
+                "SMA20": latest.get("SMA20", np.nan),
+                "SMA50": latest.get("SMA50", np.nan),
+                "SMA200": latest.get("SMA200", np.nan),
+                "Bullish_Div": latest["Bullish_Div"],
+                "Bearish_Div": latest["Bearish_Div"],
+            })
+
     return pd.DataFrame(results)
+
 
 def predict_buy_sell(df, rsi_buy=30, rsi_sell=70):
     results = df.copy()
