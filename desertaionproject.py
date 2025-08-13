@@ -177,4 +177,5 @@ if run_analysis:
         "text/csv",
     )
 
-st.markdown("⚠ Educational use only — not financial advice.")  select all stoks from dropdow to display
+st.markdown("⚠ Educational use only — not financial advice.")  
+
