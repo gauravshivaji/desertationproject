@@ -1,8 +1,8 @@
 import streamlit as st
-import yfinance as yf
+
 import pandas as pd
 import numpy as np
-import ta
+
 
 # ---------------------- CONFIG ----------------------
 NIFTY500_TICKERS = [
@@ -143,3 +143,4 @@ if st.sidebar.button("Run Analysis"):
                     st.warning(f"No chart data for {ticker_chart}")
 
 st.markdown("⚠ Disclaimer: This is for educational purposes only, not financial advice.")
+
