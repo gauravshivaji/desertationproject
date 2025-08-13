@@ -1,7 +1,8 @@
 import streamlit as st
-
+import yfinance as yf
 import pandas as pd
 import numpy as np
+import ta
 
 
 # ----------------------
@@ -133,5 +134,6 @@ if st.sidebar.button("Run Analysis"):
         st.line_chart(df[["RSI"]])
 
 st.markdown("⚠ Disclaimer: This is for educational purposes only, not financial advice.")
+
 
 
