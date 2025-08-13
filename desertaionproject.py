@@ -4,71 +4,36 @@ import pandas as pd
 import numpy as np
 import ta
 
-# ----------------------
-# CONFIG
-# ----------------------
+# ---------------------- CONFIG ----------------------
 NIFTY500_TICKERS = [
-    "ABB.NS", "ACC.NS", "ADANIENT.NS", "ADANIGREEN.NS", "ADANIPORTS.NS",
-    "ADANITRANS.NS", "ALKEM.NS", "AMARAJABAT.NS", "AMBER.NS", "APOLLOHOSP.NS",
-    "APOLLOTYRE.NS", "ASHOKLEY.NS", "ASIANPAINT.NS", "AUROPHARMA.NS", "AXISBANK.NS",
-    "BAJAJ-AUTO.NS", "BAJAJFINSV.NS", "BAJFINANCE.NS", "BALKRISIND.NS", "BANDHANBNK.NS",
-    "BANKBARODA.NS", "BANKINDIA.NS", "BATAINDIA.NS", "BEL.NS", "BERGEPAINT.NS",
-    "BHARATFORG.NS", "BHARTIARTL.NS", "BHEL.NS", "BIOCON.NS", "BOSCHLTD.NS",
-    "BPCL.NS", "BRITANNIA.NS", "CADILAHC.NS", "CANBK.NS", "CASTROLIND.NS",
-    "CHOLAFIN.NS", "CIPLA.NS", "COALINDIA.NS", "DEEPAKNTR.NS", "DIVISLAB.NS",
-    "DLF.NS", "DRREDDY.NS", "EICHERMOT.NS", "EQUITAS.NS", "ESCORTS.NS",
-    "EXIDEIND.NS", "FEDERALBNK.NS", "GAIL.NS", "GLENMARK.NS", "GODREJCP.NS",
-    "GRASIM.NS", "HAVELLS.NS", "HCLTECH.NS", "HDFC.NS", "HDFCAMC.NS",
-    "HDFCBANK.NS", "HDFCLIFE.NS", "HEROMOTOCO.NS", "HINDALCO.NS", "HINDPETRO.NS",
-    "HINDUNILVR.NS", "INDIGO.NS", "INDUSINDBK.NS", "INFRATEL.NS", "INFY.NS",
-    "IOB.NS", "IOC.NS", "IRCTC.NS", "ITC.NS", "JINDALSTEL.NS",
-    "JSWSTEEL.NS", "JUBLFOOD.NS", "KOTAKBANK.NS", "LTI.NS", "LT.NS",
-    "LUPIN.NS", "M&M.NS", "MANAPPURAM.NS", "MARICO.NS", "MARUTI.NS",
-    "MCDOWELL-N.NS", "NAUKRI.NS", "NESTLEIND.NS", "NMDC.NS", "NTPC.NS",
-    "ONGC.NS", "PAGEIND.NS", "PETRONET.NS", "PIDILITIND.NS", "PNB.NS",
-    "POWERGRID.NS", "RAMCOCEM.NS", "RECLTD.NS", "RELIANCE.NS", "SAIL.NS",
-    "SBILIFE.NS", "SBIN.NS", "SHREECEM.NS", "SIEMENS.NS", "SRF.NS",
-    "SUNPHARMA.NS", "SUNTV.NS", "TATACHEM.NS", "TATACONSUM.NS", "TATAMOTORS.NS",
-    "TATASTEEL.NS", "TCS.NS", "TECHM.NS", "TITAN.NS", "UPL.NS",
-    "ULTRACEMCO.NS", "WIPRO.NS", "YESBANK.NS", "ZEEL.NS"
+    "ABB.NS","ACC.NS","ADANIENT.NS","ADANIGREEN.NS","ADANIPORTS.NS","ADANITRANS.NS","ALKEM.NS","AMARAJABAT.NS","AMBER.NS","APOLLOHOSP.NS",
+    "APOLLOTYRE.NS","ASHOKLEY.NS","ASIANPAINT.NS","AUROPHARMA.NS","AXISBANK.NS","BAJAJ-AUTO.NS","BAJAJFINSV.NS","BAJFINANCE.NS","BALKRISIND.NS","BANDHANBNK.NS",
+    "BANKBARODA.NS","BANKINDIA.NS","BATAINDIA.NS","BEL.NS","BERGEPAINT.NS","BHARATFORG.NS","BHARTIARTL.NS","BHEL.NS","BIOCON.NS","BOSCHLTD.NS",
+    "BPCL.NS","BRITANNIA.NS","CADILAHC.NS","CANBK.NS","CASTROLIND.NS","CHOLAFIN.NS","CIPLA.NS","COALINDIA.NS","DEEPAKNTR.NS","DIVISLAB.NS",
+    "DLF.NS","DRREDDY.NS","EICHERMOT.NS","EQUITAS.NS","ESCORTS.NS","EXIDEIND.NS","FEDERALBNK.NS","GAIL.NS","GLENMARK.NS","GODREJCP.NS",
+    "GRASIM.NS","HAVELLS.NS","HCLTECH.NS","HDFC.NS","HDFCAMC.NS","HDFCBANK.NS","HDFCLIFE.NS","HEROMOTOCO.NS","HINDALCO.NS","HINDPETRO.NS",
+    "HINDUNILVR.NS","INDIGO.NS","INDUSINDBK.NS","INFRATEL.NS","INFY.NS","IOB.NS","IOC.NS","IRCTC.NS","ITC.NS","JINDALSTEL.NS",
+    "JSWSTEEL.NS","JUBLFOOD.NS","KOTAKBANK.NS","LTI.NS","LT.NS","LUPIN.NS","M&M.NS","MANAPPURAM.NS","MARICO.NS","MARUTI.NS",
+    "MCDOWELL-N.NS","NAUKRI.NS","NESTLEIND.NS","NMDC.NS","NTPC.NS","ONGC.NS","PAGEIND.NS","PETRONET.NS","PIDILITIND.NS","PNB.NS",
+    "POWERGRID.NS","RAMCOCEM.NS","RECLTD.NS","RELIANCE.NS","SAIL.NS","SBILIFE.NS","SBIN.NS","SHREECEM.NS","SIEMENS.NS","SRF.NS",
+    "SUNPHARMA.NS","SUNTV.NS","TATACHEM.NS","TATACONSUM.NS","TATAMOTORS.NS","TATASTEEL.NS","TCS.NS","TECHM.NS","TITAN.NS","UPL.NS",
+    "ULTRACEMCO.NS","WIPRO.NS","YESBANK.NS","ZEEL.NS"
 ]
 
-# ----------------------
-# DATA FUNCTIONS
-# ----------------------
-
+# ---------------------- DATA FUNCTIONS ----------------------
 @st.cache_data(show_spinner=False)
 def download_data_multi(tickers, period="2y", interval="1d"):
     try:
-        df = yf.download(tickers, period=period, interval=interval, group_by="ticker", progress=False)
-        return df
+        return yf.download(tickers, period=period, interval=interval, group_by="ticker", progress=False)
     except Exception as e:
         st.error(f"Download error: {e}")
         return None
 
-def prepare_close_series(df):
-    # If grouped multi-ticker df, columns are MultiIndex
-    if isinstance(df.columns, pd.MultiIndex):
-        # Sometimes only one ticker or fallback to single-level columns
-        if "Close" in df.columns.get_level_values(1):
-            # Return DataFrame with Close prices only for first ticker column
-            # But better handled in main code per ticker
-            return df
-    elif "Close" in df.columns:
-        # Single ticker df
-        return df.dropna(subset=["Close"])
-    return df
-
 def compute_features(df, sma_windows=(20, 50, 200), support_window=30):
     df = df.copy()
-    df = prepare_close_series(df)
-    if df.empty:
-        return df
-    try:
-        df["RSI"] = ta.momentum.RSIIndicator(df["Close"], window=14).rsi()
-    except Exception as e:
-        st.warning(f"RSI calculation error: {e}")
-        df["RSI"] = np.nan
+    if "Close" not in df.columns:
+        return pd.DataFrame()
+    df["RSI"] = ta.momentum.RSIIndicator(df["Close"], window=14).rsi()
     for win in sma_windows:
         df[f"SMA{win}"] = df["Close"].rolling(window=win, min_periods=1).mean()
     df["Support"] = df["Close"].rolling(window=support_window, min_periods=1).min()
@@ -78,15 +43,13 @@ def compute_features(df, sma_windows=(20, 50, 200), support_window=30):
     df["Bearish_Div"] = (df["RSI_Direction"] < 0) & (df["Price_Direction"] > 0)
     return df
 
-def get_latest_features_for_ticker(ticker_df, sma_windows, support_window):
-    df = compute_features(ticker_df, sma_windows, support_window)
-    if df.empty:
-        return None
-    df = df.dropna(subset=["Close", "RSI", f"SMA{sma_windows[0]}", f"SMA{sma_windows[1]}", f"SMA{sma_windows[2]}", "Support", "Bullish_Div", "Bearish_Div"])
+def get_latest_features_for_ticker(ticker_df, ticker, sma_windows, support_window):
+    df = compute_features(ticker_df, sma_windows, support_window).dropna()
     if df.empty:
         return None
     latest = df.iloc[-1]
     return {
+        "Ticker": ticker,
         "Close": latest["Close"],
         "RSI": latest["RSI"],
         "Support": latest["Support"],
@@ -100,31 +63,21 @@ def get_features_for_all(tickers, sma_windows, support_window):
     if multi_df is None or multi_df.empty:
         return pd.DataFrame()
     features_list = []
-    available_tickers = multi_df.columns.get_level_values(0).unique().tolist() if isinstance(multi_df.columns, pd.MultiIndex) else []
-    for ticker in tickers:
-        try:
-            if isinstance(multi_df.columns, pd.MultiIndex) and ticker in available_tickers:
-                ticker_df = multi_df[ticker].dropna()
-            elif not isinstance(multi_df.columns, pd.MultiIndex):
-                ticker_df = multi_df.dropna()
-            else:
-                # Ticker missing or no data
-                continue
-            if ticker_df.empty:
-                continue
-            feats = get_latest_features_for_ticker(ticker_df, sma_windows, support_window)
-            if feats:
-                feats["Ticker"] = ticker
-                features_list.append(feats)
-        except Exception as e:
-            st.warning(f"Skipping {ticker} due to error: {e}")
-            continue
+    if isinstance(multi_df.columns, pd.MultiIndex):
+        available_tickers = multi_df.columns.get_level_values(0).unique()
+        for ticker in tickers:
+            if ticker in available_tickers:
+                feats = get_latest_features_for_ticker(multi_df[ticker].dropna(), ticker, sma_windows, support_window)
+                if feats:
+                    features_list.append(feats)
+    else:
+        # Single ticker mode
+        feats = get_latest_features_for_ticker(multi_df.dropna(), tickers[0], sma_windows, support_window)
+        if feats:
+            features_list.append(feats)
     return pd.DataFrame(features_list)
 
-# ----------------------
-# STRATEGY
-# ----------------------
-
+# ---------------------- STRATEGY ----------------------
 def predict_buy_sell(df, rsi_buy=30, rsi_sell=70):
     results = df.copy()
     results["Buy_Point"] = (
@@ -142,16 +95,13 @@ def predict_buy_sell(df, rsi_buy=30, rsi_sell=70):
     )
     return results
 
-# ----------------------
-# UI
-# ----------------------
-
-st.set_page_config(page_title="Nifty500 Interactive Stock Predictor", layout="wide")
+# ---------------------- STREAMLIT UI ----------------------
+st.set_page_config(page_title="Nifty500 Buy/Sell Predictor", layout="wide")
 st.title("📊 Nifty500 Interactive Stock Buy/Sell Predictor")
 
 with st.sidebar:
     st.header("Settings")
-    selected_tickers = st.multiselect("Select stocks", NIFTY500_TICKERS, default=NIFTY500_TICKERS[:10])
+    selected_tickers = st.multiselect("Select stocks", NIFTY500_TICKERS, default=NIFTY500_TICKERS[:5])
     sma_w1 = st.number_input("SMA Window 1", 5, 250, 20)
     sma_w2 = st.number_input("SMA Window 2", 5, 250, 50)
     sma_w3 = st.number_input("SMA Window 3", 5, 250, 200)
@@ -167,6 +117,7 @@ if run_btn:
             st.error("⚠ No data available for selected tickers.")
         else:
             preds = predict_buy_sell(feats, rsi_buy, rsi_sell)
+
             tab1, tab2, tab3 = st.tabs(["✅ Buy Signals", "❌ Sell Signals", "📈 Charts"])
             with tab1:
                 st.dataframe(preds[preds["Buy_Point"]])
@@ -174,14 +125,11 @@ if run_btn:
                 st.dataframe(preds[preds["Sell_Point"]])
             with tab3:
                 ticker_chart = st.selectbox("Select Ticker for Chart", selected_tickers)
-                if ticker_chart:
-                    chart_df = yf.download(ticker_chart, period="6mo", interval="1d", progress=False)
-                    if not chart_df.empty:
-                        chart_df = compute_features(chart_df, (sma_w1, sma_w2, sma_w3), support_window)
-                        st.line_chart(chart_df[["Close", f"SMA{sma_w1}", f"SMA{sma_w2}", f"SMA{sma_w3}"]])
-                        st.line_chart(chart_df[["RSI"]])
-                    else:
-                        st.warning(f"No chart data available for {ticker_chart}")
+                chart_df = yf.download(ticker_chart, period="6mo", interval="1d", progress=False)
+                if not chart_df.empty:
+                    chart_df = compute_features(chart_df, (sma_w1, sma_w2, sma_w3), support_window)
+                    st.line_chart(chart_df[["Close", f"SMA{sma_w1}", f"SMA{sma_w2}", f"SMA{sma_w3}"]])
+                    st.line_chart(chart_df[["RSI"]])
 
     st.download_button(
         "📥 Download Results",
