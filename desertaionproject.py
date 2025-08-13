@@ -78,7 +78,6 @@ def get_features_for_all(tickers, sma_windows, support_window):
     multi_df = download_data_multi(tickers)
     if multi_df is None or multi_df.empty:
         return pd.DataFrame()
-
     features_list = []
     if isinstance(multi_df.columns, pd.MultiIndex):
         available = multi_df.columns.get_level_values(0).unique()
@@ -120,10 +119,9 @@ def predict_buy_sell(df, rsi_buy=30, rsi_sell=70):
 # ----------- UI -----------
 st.set_page_config(page_title="Nifty500 Buy/Sell Predictor", layout="wide")
 st.title("📊 Nifty500 Buy/Sell Predictor")
-
 with st.sidebar:
     st.header("Settings")
-    selected_tickers = st.multiselect("Select stocks", NIFTY500_TICKERS, default=NIFTY500_TICKERS[:5])
+    selected_tickers = st.multiselect( "Select stocks", NIFTY500_TICKERS, default=NIFTY500_TICKERS[:5])
     sma_w1 = st.number_input("SMA Window 1", 5, 250, 20)
     sma_w2 = st.number_input("SMA Window 2", 5, 250, 50)
     sma_w3 = st.number_input("SMA Window 3", 5, 250, 200)
@@ -140,7 +138,6 @@ if run_analysis:
         else:
             preds = predict_buy_sell(feats, rsi_buy, rsi_sell)
             tab1, tab2, tab3 = st.tabs(["Buy Signals", "Sell Signals", "Charts"])
-
             with tab1:
                 st.dataframe(preds[preds["Buy_Point"]])
             with tab2:
@@ -153,7 +150,5 @@ if run_analysis:
                     if not chart_df.empty:
                         st.line_chart(chart_df[["Close", f"SMA{sma_w1}", f"SMA{sma_w2}", f"SMA{sma_w3}"]])
                         st.line_chart(chart_df[["RSI"]])
-
     st.download_button("📥 Download Results", preds.to_csv(index=False).encode(), "nifty500_signals.csv", "text/csv")
-
 st.markdown("⚠ Educational use only — not financial advice.")
