@@ -1,7 +1,8 @@
 import streamlit as st
-
 import pandas as pd
 import numpy as np
+import yfinance as yf
+import ta
 
 
 # ---------------------- CONFIG ----------------------
@@ -76,8 +77,8 @@ def get_latest_features(ticker, sma_windows=(20,50,200), support_window=30):
 
 def get_features_for_all_stocks(tickers, sma_windows=(20,50,200), support_window=30):
     results = []
-    for t in tickers:
-        feat = get_latest_features(t, sma_windows, support_window)
+    df = yf.download(tickers, period="2y", interval="1d", group_by='ticker', progress=False)
+
         if feat is not None:
             results.append(feat)
     return pd.DataFrame(results)
@@ -143,4 +144,5 @@ if st.sidebar.button("Run Analysis"):
                     st.warning(f"No chart data for {ticker_chart}")
 
 st.markdown("⚠ Disclaimer: This is for educational purposes only, not financial advice.")
+
 
