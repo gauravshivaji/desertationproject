@@ -36,9 +36,11 @@ NIFTY500_TICKERS = [
 # ----------------------
 # DATA & FEATURE FUNCTIONS
 # ----------------------
-
 def download_data(ticker, period="2y", interval="1d"):
-    return yf.download(ticker, period=period, interval=interval, progress=False)
+    df = yf.download(ticker, period=period, interval=interval, progress=False)
+    if df.empty:
+        return None
+    return df
 
 def compute_features(df, sma_windows=(20, 50, 200), support_window=30):
     df = df.copy()
@@ -54,6 +56,12 @@ def compute_features(df, sma_windows=(20, 50, 200), support_window=30):
 
 def get_latest_features(ticker, sma_windows=(20,50,200), support_window=30):
     df = download_data(ticker)
+    if df is None:
+        return {
+            "Ticker": ticker, "Close": np.nan, "RSI": np.nan, "Support": np.nan,
+            "SMA20": np.nan, "SMA50": np.nan, "SMA200": np.nan,
+            "Bullish_Div": False, "Bearish_Div": False
+        }
     df = compute_features(df, sma_windows, support_window)
     latest = df.iloc[-1]
     return {
@@ -74,7 +82,6 @@ def get_features_for_all_stocks(tickers, sma_windows=(20,50,200), support_window
 # ----------------------
 # PREDICTION LOGIC
 # ----------------------
-
 def predict_buy_sell(df, rsi_buy=30, rsi_sell=70):
     results = df.copy()
     results["Buy_Point"] = (
@@ -95,12 +102,10 @@ def predict_buy_sell(df, rsi_buy=30, rsi_sell=70):
 # ----------------------
 # STREAMLIT INTERFACE
 # ----------------------
-
 st.set_page_config(page_title="Nifty500 Interactive Stock Predictor", layout="wide")
 st.title("📊 Nifty500 Interactive Stock Buy/Sell Predictor")
 
 st.sidebar.header("Settings")
-
 selected_tickers = st.sidebar.multiselect("Select stocks", NIFTY500_TICKERS, default=NIFTY500_TICKERS[:10])
 sma_w1 = st.sidebar.number_input("SMA Window 1", 5, 250, 20)
 sma_w2 = st.sidebar.number_input("SMA Window 2", 5, 250, 50)
@@ -112,24 +117,29 @@ rsi_sell = st.sidebar.slider("RSI Sell Threshold", 50, 90, 70)
 if st.sidebar.button("Run Analysis"):
     with st.spinner("📥 Fetching data and calculating indicators... This may take some time for many tickers."):
         feats = get_features_for_all_stocks(selected_tickers, (sma_w1, sma_w2, sma_w3), support_window)
-        preds = predict_buy_sell(feats, rsi_buy, rsi_sell)
+        feats = feats.dropna(subset=["Close"])  # remove tickers with no data
+        if feats.empty:
+            st.error("⚠ No data available for selected tickers.")
+        else:
+            preds = predict_buy_sell(feats, rsi_buy, rsi_sell)
 
-    col1, col2 = st.columns(2)
-    with col1:
-        st.subheader("✅ BUY Signals")
-        st.dataframe(preds[preds["Buy_Point"]])
-    with col2:
-        st.subheader("❌ SELL Signals")
-        st.dataframe(preds[preds["Sell_Point"]])
+            col1, col2 = st.columns(2)
+            with col1:
+                st.subheader("✅ BUY Signals")
+                st.dataframe(preds[preds["Buy_Point"]])
+            with col2:
+                st.subheader("❌ SELL Signals")
+                st.dataframe(preds[preds["Sell_Point"]])
 
-    st.download_button("📥 Download Full Results", preds.to_csv(index=False).encode(), "nifty500_signals.csv", "text/csv")
+            st.download_button("📥 Download Full Results", preds.to_csv(index=False).encode(), "nifty500_signals.csv", "text/csv")
 
-    st.markdown("---")
-    ticker_chart = st.selectbox("📉 View Chart for", selected_tickers)
-    if ticker_chart:
-        df = yf.download(ticker_chart, period="6mo", interval="1d", progress=False)
-        df["RSI"] = ta.momentum.RSIIndicator(df["Close"], window=14).rsi()
-        st.line_chart(df[["Close"]])
-        st.line_chart(df[["RSI"]])
+            st.markdown("---")
+            ticker_chart = st.selectbox("📉 View Chart for", selected_tickers)
+            if ticker_chart:
+                df = download_data(ticker_chart, period="6mo", interval="1d")
+                if df is not None:
+                    df["RSI"] = ta.momentum.RSIIndicator(df["Close"], window=14).rsi()
+                    st.line_chart(df[["Close"]])
+                    st.line_chart(df[["RSI"]])
 
 st.markdown("⚠ Disclaimer: This is for educational purposes only, not financial advice.")
