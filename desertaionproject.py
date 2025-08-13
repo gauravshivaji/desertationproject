@@ -13,7 +13,7 @@ try:
 except Exception:
     SKLEARN_OK = False
 
-# ----------- CONFIG -----------
+# ---------------- CONFIG ----------------
 NIFTY500_TICKERS = [
     "ABB.NS","ACC.NS","ADANIENT.NS","ADANIGREEN.NS","ADANIPORTS.NS",
     "ADANITRANS.NS","ALKEM.NS","AMARAJABAT.NS","AMBER.NS","APOLLOHOSP.NS",
@@ -37,7 +37,7 @@ NIFTY500_TICKERS = [
     "TCS.NS","TECHM.NS","TITAN.NS","UPL.NS","ULTRACEMCO.NS","WIPRO.NS","YESBANK.NS","ZEEL.NS"
 ]
 
-# ----------- HELPERS -----------
+# ---------------- HELPERS ----------------
 @st.cache_data(show_spinner=False)
 def download_data_multi(tickers, period="2y", interval="1d"):
     try:
@@ -49,11 +49,10 @@ def download_data_multi(tickers, period="2y", interval="1d"):
         return None
 
 def compute_features(df, sma_windows=(20, 50, 200), support_window=30):
-    # Flatten MultiIndex if needed (for single-ticker frames sometimes returned as MultiIndex)
+    # Flatten MultiIndex if needed
     if isinstance(df.columns, pd.MultiIndex):
         df.columns = [col[0] if isinstance(col, tuple) else col for col in df.columns]
 
-    # Ensure 'Close' column exists and is valid
     if "Close" not in df.columns or df["Close"].dropna().empty:
         return pd.DataFrame()
 
@@ -65,24 +64,24 @@ def compute_features(df, sma_windows=(20, 50, 200), support_window=30):
     except Exception:
         df["RSI"] = np.nan
 
-    # SMA calculations
+    # SMAs
     for win in sma_windows:
         df[f"SMA{win}"] = df["Close"].rolling(window=win, min_periods=1).mean()
 
-    # Support level
+    # Support (rolling minimum)
     df["Support"] = df["Close"].rolling(window=support_window, min_periods=1).min()
 
-    # Divergence features
+    # Divergences
     df["RSI_Direction"] = df["RSI"].diff(5)
     df["Price_Direction"] = df["Close"].diff(5)
     df["Bullish_Div"] = (df["RSI_Direction"] > 0) & (df["Price_Direction"] < 0)
     df["Bearish_Div"] = (df["RSI_Direction"] < 0) & (df["Price_Direction"] > 0)
 
-    # Extra ML-friendly features
+    # Returns for ML
     for w in (1, 3, 5, 10):
         df[f"Ret_{w}"] = df["Close"].pct_change(w)
 
-    # Distances from SMAs
+    # Distance from SMAs
     for win in sma_windows:
         df[f"Dist_SMA{win}"] = (df["Close"] - df[f"SMA{win}"]) / df[f"SMA{win}"]
 
@@ -104,7 +103,7 @@ def get_latest_features_for_ticker(ticker_df, ticker, sma_windows, support_windo
         "Support": float(latest["Support"]),
         **{f"SMA{w}": float(latest.get(f"SMA{w}", np.nan)) for w in sma_windows},
         "Bullish_Div": bool(latest["Bullish_Div"]),
-        "Bearish_Div": bool(latest["Bearish_Div"])
+        "Bearish_Div": bool(latest["Bearish_Div"]),
     }
 
 def get_features_for_all(tickers, sma_windows, support_window):
@@ -129,13 +128,18 @@ def get_features_for_all(tickers, sma_windows, support_window):
             features_list.append(feats)
     return pd.DataFrame(features_list)
 
-# ----------- RULE-BASED STRATEGY -----------
+# ---------------- RULE-BASED STRATEGY ----------------
 def predict_buy_sell_rule(df, rsi_buy=30, rsi_sell=70):
+    """
+    Produces boolean columns:
+      - Buy_Point: True when our buy conditions are met
+      - Sell_Point: True when our sell conditions are met
+    """
     if df.empty:
         return df
     results = df.copy()
 
-    # Reversal Buy Point
+    # Reversal Buy
     results["Reversal_Buy"] = (
         (results["RSI"] < rsi_buy) &
         (results["Bullish_Div"]) &
@@ -143,7 +147,7 @@ def predict_buy_sell_rule(df, rsi_buy=30, rsi_sell=70):
         (results["Close"] > results["SMA20"])
     )
 
-    # Trend Buy Point: Triple SMA alignment
+    # Trend Buy (Triple SMA alignment)
     results["Trend_Buy"] = (
         (results["Close"] > results["SMA20"]) &
         (results["SMA20"] > results["SMA50"]) &
@@ -151,11 +155,11 @@ def predict_buy_sell_rule(df, rsi_buy=30, rsi_sell=70):
         (results["RSI"] > 50)
     )
 
-    # Final Buy Point
-    results["Sell_Point"] = results["Reversal_Buy"] | results["Trend_Buy"]
+    # Final Buy Point (ANY of the buy logics)
+    results["Buy_Point"] = results["Reversal_Buy"] | results["Trend_Buy"]
 
-    # Sell Point logic
-    results["Buy_Point"] = (
+    # Sell logic
+    results["Sell_Point"] = (
         ((results["RSI"] > rsi_sell) & (results["Bearish_Div"])) |
         (results["Close"] < results["Support"]) |
         ((results["SMA20"] < results["SMA50"]) & (results["SMA50"] < results["SMA200"]))
@@ -163,7 +167,7 @@ def predict_buy_sell_rule(df, rsi_buy=30, rsi_sell=70):
 
     return results
 
-# ----------- ML PIPELINE -----------
+# ---------------- ML PIPELINE ----------------
 @st.cache_data(show_spinner=False)
 def load_history_for_ticker(ticker, period="5y", interval="1d"):
     try:
@@ -173,14 +177,27 @@ def load_history_for_ticker(ticker, period="5y", interval="1d"):
         return pd.DataFrame()
 
 def label_from_future_returns(df, horizon=5, buy_thr=0.03, sell_thr=-0.03):
-    """Create 3-class label using future return over `horizon` days."""
+    """3-class label using future return over `horizon` days."""
     fut_ret = df["Close"].shift(-horizon) / df["Close"] - 1.0
     label = pd.Series(0, index=df.index)  # 0 = Hold
     label[fut_ret >= buy_thr] = 1         # 1 = Buy
     label[fut_ret <= sell_thr] = -1       # -1 = Sell
     return label
 
-def build_ml_dataset_for_tickers(tickers, sma_windows, support_window, horizon, buy_thr, sell_thr, min_rows=250):
+def label_from_rule_based(df, rsi_buy=30, rsi_sell=70):
+    rules = predict_buy_sell_rule(df, rsi_buy=rsi_buy, rsi_sell=rsi_sell)
+    label = pd.Series(0, index=rules.index)
+    label[rules["Buy_Point"]] = 1
+    label[rules["Sell_Point"]] = -1
+    return label
+
+def build_ml_dataset_for_tickers(
+    tickers, sma_windows, support_window,
+    label_mode="future",  # "future" or "rule"
+    horizon=5, buy_thr=0.03, sell_thr=-0.03,
+    rsi_buy=30, rsi_sell=70,
+    min_rows=250
+):
     """Pool data across selected tickers for training."""
     X_list, y_list, meta_list = [], [], []
     feature_cols = None
@@ -195,18 +212,22 @@ def build_ml_dataset_for_tickers(tickers, sma_windows, support_window, horizon, 
             continue
 
         # Labeling
-        y = label_from_future_returns(feat, horizon=horizon, buy_thr=buy_thr, sell_thr=sell_thr)
+        if label_mode == "rule":
+            y = label_from_rule_based(feat, rsi_buy=rsi_buy, rsi_sell=rsi_sell)
+        else:
+            y = label_from_future_returns(feat, horizon=horizon, buy_thr=buy_thr, sell_thr=sell_thr)
 
         # Drop rows with NaNs and align
         data = feat.join(y.rename("Label")).dropna()
         if data.empty:
             continue
 
-        # Feature selection (exclude leakage)
+        # Feature selection (exclude leakage-like indicators if desired)
         drop_cols = set(["Label"])
-        drop_cols |= set(["Support","Bullish_Div","Bearish_Div"])  # optional; can keep if desired
-        # Keep numeric columns only
-        use = data.select_dtypes(include=[np.number]).drop(columns=list(drop_cols.intersection(data.columns)), errors="ignore")
+        drop_cols |= set(["Support","Bullish_Div","Bearish_Div"])  # optional; keep out for generalization
+        use = data.select_dtypes(include=[np.number]).drop(
+            columns=list(drop_cols.intersection(data.columns)), errors="ignore"
+        )
 
         # Define feature columns once
         if feature_cols is None:
@@ -227,11 +248,9 @@ def build_ml_dataset_for_tickers(tickers, sma_windows, support_window, horizon, 
 
 def train_rf_classifier(X, y, random_state=42):
     """Train RandomForest with class balancing; simple holdout for speed."""
-    # Guard
     if X.empty or y.empty:
         return None, None, None
 
-    # Stratify may fail if any class has <2 samples; fall back gracefully
     stratify_opt = y if len(np.unique(y)) > 1 else None
     try:
         X_train, X_test, y_train, y_test = train_test_split(
@@ -249,7 +268,6 @@ def train_rf_classifier(X, y, random_state=42):
     )
     clf.fit(X_train, y_train)
 
-    # Quick metrics
     y_pred = clf.predict(X_test)
     acc = accuracy_score(y_test, y_pred)
     report = classification_report(y_test, y_pred, zero_division=0, output_dict=False)
@@ -274,7 +292,7 @@ def latest_feature_row_for_ticker(ticker, sma_windows, support_window, feature_c
     row = row[feature_cols]
     return row
 
-# ----------- UI -----------
+# ---------------- UI ----------------
 st.set_page_config(page_title="Nifty500 Buy/Sell Predictor", layout="wide")
 st.title("📊 Nifty500 Buy/Sell Predictor (Rule-based + 🤖 ML)")
 
@@ -289,21 +307,37 @@ with st.sidebar:
     support_window = st.number_input("Support Period (days)", 5, 90, 30)
 
     st.markdown("---")
-    st.subheader("Rule-based thresholds")
-    rsi_buy = st.slider("RSI Buy Threshold", 10, 50, 30)
-    rsi_sell = st.slider("RSI Sell Threshold", 50, 90, 70)
+    # Labeling mode toggle (controls ML labels)
+    label_mode = st.radio("ML Labeling Mode", ["Future Returns", "Rule-based Strategy"], index=0)
+
+    if label_mode == "Rule-based Strategy":
+        st.subheader("Rule-based thresholds for labels")
+        rsi_buy_lbl = st.slider("RSI Buy Threshold (labels)", 5, 50, 30)
+        rsi_sell_lbl = st.slider("RSI Sell Threshold (labels)", 50, 95, 70)
+        # Also keep live rule thresholds same as label thresholds by default (can separate if desired)
+        rsi_buy = rsi_buy_lbl
+        rsi_sell = rsi_sell_lbl
+    else:
+        st.subheader("Rule-based thresholds (for live rule signals)")
+        rsi_buy = st.slider("RSI Buy Threshold", 5, 50, 30)
+        rsi_sell = st.slider("RSI Sell Threshold", 50, 95, 70)
 
     st.markdown("---")
-    st.subheader("ML labeling (future return)")
-    ml_horizon = st.number_input("Horizon (days ahead)", 2, 20, 5)
-    ml_buy_thr = st.number_input("Buy threshold (e.g., 0.03 = +3%)", 0.005, 0.20, 0.03, step=0.005, format="%.3f")
-    ml_sell_thr = st.number_input("Sell threshold (e.g., -0.03 = -3%)", -0.20, -0.005, -0.03, step=0.005, format="%.3f")
+    if label_mode == "Future Returns":
+        st.subheader("ML labeling (future return)")
+        ml_horizon = st.number_input("Horizon (days ahead)", 2, 20, 5)
+        ml_buy_thr = st.number_input("Buy threshold (e.g., 0.03 = +3%)", 0.005, 0.20, 0.03, step=0.005, format="%.3f")
+        ml_sell_thr = st.number_input("Sell threshold (e.g., -0.03 = -3%)", -0.20, -0.005, -0.03, step=0.005, format="%.3f")
+    else:
+        # Dummy placeholders to keep variables defined
+        ml_horizon, ml_buy_thr, ml_sell_thr = 5, 0.03, -0.03
 
     run_analysis = st.button("Run Analysis")
 
 if run_analysis:
     sma_tuple = (sma_w1, sma_w2, sma_w3)
 
+    # -------- Rule-based features for current snapshot --------
     with st.spinner("Fetching data & computing rule-based features..."):
         feats = get_features_for_all(selected_tickers, sma_tuple, support_window)
         if feats.empty:
@@ -318,13 +352,13 @@ if run_analysis:
         if feats.empty:
             st.info("No rule-based buy signals.")
         else:
-            st.dataframe(preds_rule[preds_rule["Buy_Point"]])
+            st.dataframe(preds_rule[preds_rule["Buy_Point"]], use_container_width=True)
 
     with tab2:
         if feats.empty:
             st.info("No rule-based sell signals.")
         else:
-            st.dataframe(preds_rule[preds_rule["Sell_Point"]])
+            st.dataframe(preds_rule[preds_rule["Sell_Point"]], use_container_width=True)
 
     with tab3:
         ticker_for_chart = st.selectbox("Chart Ticker", selected_tickers)
@@ -345,10 +379,18 @@ if run_analysis:
             st.error("scikit-learn not available. Install with: pip install scikit-learn")
         else:
             with st.spinner("Building ML dataset & training model..."):
-                X, y, feature_cols, tickers_series = build_ml_dataset_for_tickers(
-                    selected_tickers, sma_tuple, support_window,
-                    horizon=ml_horizon, buy_thr=ml_buy_thr, sell_thr=ml_sell_thr
-                )
+                if label_mode == "Rule-based Strategy":
+                    X, y, feature_cols, tickers_series = build_ml_dataset_for_tickers(
+                        selected_tickers, sma_tuple, support_window,
+                        label_mode="rule",
+                        rsi_buy=rsi_buy, rsi_sell=rsi_sell
+                    )
+                else:
+                    X, y, feature_cols, tickers_series = build_ml_dataset_for_tickers(
+                        selected_tickers, sma_tuple, support_window,
+                        label_mode="future",
+                        horizon=ml_horizon, buy_thr=ml_buy_thr, sell_thr=ml_sell_thr
+                    )
 
                 if X.empty or y.empty:
                     st.warning("Not enough historical data to train the ML model for the chosen settings.")
@@ -373,6 +415,7 @@ if run_analysis:
                             "Prob_Hold": float(proba[list(clf.classes_).index(0)]) if proba is not None and 0 in clf.classes_ else np.nan,
                             "Prob_Sell": float(proba[list(clf.classes_).index(-1)]) if proba is not None and -1 in clf.classes_ else np.nan,
                         })
+
                     if rows:
                         ml_df = pd.DataFrame(rows).sort_values(["ML_Pred","Prob_Buy"], ascending=[True, False])
                         st.dataframe(ml_df, use_container_width=True)
@@ -389,5 +432,3 @@ if run_analysis:
         )
 
 st.markdown("⚠ Educational use only — not financial advice.")
-
-
