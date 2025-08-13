@@ -106,24 +106,40 @@ def get_features_for_all(tickers, sma_windows, support_window):
     return pd.DataFrame(features_list)
 
 # ----------- STRATEGY -----------
+# ----------- STRATEGY -----------
 def predict_buy_sell(df, rsi_buy=30, rsi_sell=70):
     if df.empty:
         return df
     results = df.copy()
-    results["Buy_Point"] = (
-        (results["RSI"] < rsi_buy) &
-        (results["Bullish_Div"]) &
-        (np.abs(results["Close"] - results["Support"]) < 0.03 * results["Close"]) &
+
+    # Reversal Buy Point
+    results["Reversal_Buy"] = (
+        (results["RSI"] < rsi_buy) &  # Oversold
+        (results["Bullish_Div"]) &    # Bullish divergence
+        (np.abs(results["Close"] - results["Support"]) < 0.03 * results["Close"]) &  # Near support
+        (results["Close"] > results["SMA20"])  # Price recovering above SMA20
+    )
+
+    # Trend Buy Point: Triple SMA alignment
+    results["Trend_Buy"] = (
         (results["Close"] > results["SMA20"]) &
         (results["SMA20"] > results["SMA50"]) &
-        (results["SMA50"] > results["SMA200"])
+        (results["SMA50"] > results["SMA200"]) &
+        (results["RSI"] > 50)  # Optional momentum filter
     )
+
+    # Final Buy Point: either reversal or trend
+    results["Buy_Point"] = results["Reversal_Buy"] | results["Trend_Buy"]
+
+    # Sell Point logic (unchanged)
     results["Sell_Point"] = (
         ((results["RSI"] > rsi_sell) & (results["Bearish_Div"])) |
         (results["Close"] < results["Support"]) |
         ((results["SMA20"] < results["SMA50"]) & (results["SMA50"] < results["SMA200"]))
     )
+
     return results
+
 
 # ----------- UI -----------
 st.set_page_config(page_title="Nifty500 Buy/Sell Predictor", layout="wide")
@@ -178,4 +194,5 @@ if run_analysis:
     )
 
 st.markdown("⚠ Educational use only — not financial advice.")  
+
 
