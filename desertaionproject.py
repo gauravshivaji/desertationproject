@@ -40,7 +40,6 @@ def download_data_multi(tickers, period="2y", interval="1d"):
         return None
 
 def compute_features(df, sma_windows=(20,50,200), support_window=30):
-    """Compute indicators safely."""
     if "Close" not in df.columns or df["Close"].empty or df["Close"].isna().all():
         return pd.DataFrame()
     df = df.copy()
@@ -55,26 +54,21 @@ def compute_features(df, sma_windows=(20,50,200), support_window=30):
     return df
 
 def get_latest_features_for_ticker(ticker_df, ticker, sma_windows, support_window):
-    """Return latest feature row safely."""
     df = compute_features(ticker_df, sma_windows, support_window).dropna()
     if df.empty:
         return None
-    try:
-        latest = df.iloc[-1]
-    except IndexError:
-        return None
+    latest = df.iloc[-1]
     return {
         "Ticker": ticker,
-        "Close": float(latest.get("Close", np.nan)),
-        "RSI": float(latest.get("RSI", np.nan)),
-        "Support": float(latest.get("Support", np.nan)),
+        "Close": float(latest["Close"]),
+        "RSI": float(latest["RSI"]),
+        "Support": float(latest["Support"]),
         **{f"SMA{w}": float(latest.get(f"SMA{w}", np.nan)) for w in sma_windows},
-        "Bullish_Div": bool(latest.get("Bullish_Div", False)),
-        "Bearish_Div": bool(latest.get("Bearish_Div", False))
+        "Bullish_Div": bool(latest["Bullish_Div"]),
+        "Bearish_Div": bool(latest["Bearish_Div"])
     }
 
 def get_features_for_all(tickers, sma_windows, support_window):
-    """Loop over each ticker safely."""
     multi_df = download_data_multi(tickers)
     if multi_df is None or multi_df.empty:
         return pd.DataFrame()
@@ -90,7 +84,7 @@ def get_features_for_all(tickers, sma_windows, support_window):
             feats = get_latest_features_for_ticker(tdf, ticker, sma_windows, support_window)
             if feats:
                 features_list.append(feats)
-    else:  # Single ticker mode
+    else:
         feats = get_latest_features_for_ticker(multi_df.dropna(), tickers[0], sma_windows, support_window)
         if feats:
             features_list.append(feats)
@@ -119,9 +113,12 @@ def predict_buy_sell(df, rsi_buy=30, rsi_sell=70):
 # ----------- UI -----------
 st.set_page_config(page_title="Nifty500 Buy/Sell Predictor", layout="wide")
 st.title("📊 Nifty500 Buy/Sell Predictor")
+
 with st.sidebar:
     st.header("Settings")
-    selected_tickers = st.multiselect( "Select stocks", NIFTY500_TICKERS, default=NIFTY500_TICKERS[:5])
+    selected_tickers = st.multiselect(
+        "Select stocks", NIFTY500_TICKERS, default=NIFTY500_TICKERS[:5]
+    )
     sma_w1 = st.number_input("SMA Window 1", 5, 250, 20)
     sma_w2 = st.number_input("SMA Window 2", 5, 250, 50)
     sma_w3 = st.number_input("SMA Window 3", 5, 250, 200)
@@ -132,23 +129,34 @@ with st.sidebar:
 
 if run_analysis:
     with st.spinner("Fetching and computing..."):
-        feats = get_features_for_all(selected_tickers, (sma_w1, sma_w2, sma_w3), support_window)
+        feats = get_features_for_all(
+            selected_tickers, (sma_w1, sma_w2, sma_w3), support_window
+        )
         if feats.empty:
             st.error("No valid data for selected tickers.")
         else:
             preds = predict_buy_sell(feats, rsi_buy, rsi_sell)
             tab1, tab2, tab3 = st.tabs(["Buy Signals", "Sell Signals", "Charts"])
+
             with tab1:
                 st.dataframe(preds[preds["Buy_Point"]])
             with tab2:
                 st.dataframe(preds[preds["Sell_Point"]])
             with tab3:
                 ticker_for_chart = st.selectbox("Chart Ticker", selected_tickers)
-                chart_df = yf.download(ticker_for_chart, period="6mo", interval="1d", progress=False)
+                chart_df = yf.download(
+                    ticker_for_chart, period="6mo", interval="1d", progress=False
+                )
                 if not chart_df.empty:
                     chart_df = compute_features(chart_df, (sma_w1, sma_w2, sma_w3), support_window)
                     if not chart_df.empty:
                         st.line_chart(chart_df[["Close", f"SMA{sma_w1}", f"SMA{sma_w2}", f"SMA{sma_w3}"]])
                         st.line_chart(chart_df[["RSI"]])
-    st.download_button("📥 Download Results", preds.to_csv(index=False).encode(), "nifty500_signals.csv", "text/csv")
+    st.download_button(
+        "📥 Download Results",
+        preds.to_csv(index=False).encode(),
+        "nifty500_signals.csv",
+        "text/csv",
+    )
+
 st.markdown("⚠ Educational use only — not financial advice.")
