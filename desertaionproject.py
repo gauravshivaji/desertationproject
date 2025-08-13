@@ -40,8 +40,13 @@ def download_data_multi(tickers, period="2y", interval="1d"):
         return None
 
 def compute_features(df, sma_windows=(20,50,200), support_window=30):
-    if "Close" not in df.columns or df["Close"].empty or df["Close"].isna().all():
-        return pd.DataFrame()
+    if (
+    "Close" not in df.columns
+    or df["Close"].empty
+    or df["Close"].isna().all().item() if hasattr(df["Close"].isna().all(), 'item') else df["Close"].isna().all()
+):
+    return df
+
     df = df.copy()
     df["RSI"] = ta.momentum.RSIIndicator(df["Close"], window=14).rsi()
     for win in sma_windows:
@@ -160,3 +165,4 @@ if run_analysis:
     )
 
 st.markdown("⚠ Educational use only — not financial advice.")
+
