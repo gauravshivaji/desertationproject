@@ -152,10 +152,10 @@ def predict_buy_sell_rule(df, rsi_buy=30, rsi_sell=70):
     )
 
     # Final Buy Point
-    results["Buy_Point"] = results["Reversal_Buy"] | results["Trend_Buy"]
+    results["Sell_Point"] = results["Reversal_Buy"] | results["Trend_Buy"]
 
     # Sell Point logic
-    results["Sell_Point"] = (
+    results["Buy_Point"] = (
         ((results["RSI"] > rsi_sell) & (results["Bearish_Div"])) |
         (results["Close"] < results["Support"]) |
         ((results["SMA20"] < results["SMA50"]) & (results["SMA50"] < results["SMA200"]))
@@ -389,5 +389,6 @@ if run_analysis:
         )
 
 st.markdown("⚠ Educational use only — not financial advice.")
+
 
 
