@@ -2,7 +2,7 @@ import streamlit as st
 
 import pandas as pd
 import numpy as np
-import ta
+
 
 # ----------------------
 # CONFIG & FULL TICKERS LIST
@@ -133,4 +133,5 @@ if st.sidebar.button("Run Analysis"):
         st.line_chart(df[["RSI"]])
 
 st.markdown("⚠ Disclaimer: This is for educational purposes only, not financial advice.")
+
 
