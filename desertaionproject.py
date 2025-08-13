@@ -40,9 +40,13 @@ def download_data_multi(tickers, period="2y", interval="1d"):
         return None
 
 def compute_features(df, sma_windows=(20, 50, 200), support_window=30):
+    # Flatten MultiIndex if needed
+    if isinstance(df.columns, pd.MultiIndex):
+        df.columns = [col[0] if isinstance(col, tuple) else col for col in df.columns]
+
     # Ensure 'Close' column exists and is valid
-    if "Close" not in df.columns or df["Close"].empty or bool(df["Close"].isna().all()):
-        return df  # Return as is if no valid data
+    if "Close" not in df.columns or df["Close"].dropna().empty:
+        return pd.DataFrame()
 
     df = df.copy()
 
@@ -53,7 +57,7 @@ def compute_features(df, sma_windows=(20, 50, 200), support_window=30):
     for win in sma_windows:
         df[f"SMA{win}"] = df["Close"].rolling(window=win, min_periods=1).mean()
 
-    # Support level (rolling min)
+    # Support level
     df["Support"] = df["Close"].rolling(window=support_window, min_periods=1).min()
 
     # Divergence features
@@ -63,9 +67,6 @@ def compute_features(df, sma_windows=(20, 50, 200), support_window=30):
     df["Bearish_Div"] = (df["RSI_Direction"] < 0) & (df["Price_Direction"] > 0)
 
     return df
-
-    
-    
 
 def get_latest_features_for_ticker(ticker_df, ticker, sma_windows, support_window):
     df = compute_features(ticker_df, sma_windows, support_window).dropna()
@@ -166,6 +167,9 @@ if run_analysis:
                     if not chart_df.empty:
                         st.line_chart(chart_df[["Close", f"SMA{sma_w1}", f"SMA{sma_w2}", f"SMA{sma_w3}"]])
                         st.line_chart(chart_df[["RSI"]])
+                else:
+                    st.warning("No chart data available.")
+
     st.download_button(
         "📥 Download Results",
         preds.to_csv(index=False).encode(),
@@ -174,6 +178,3 @@ if run_analysis:
     )
 
 st.markdown("⚠ Educational use only — not financial advice.")
-
-
-
