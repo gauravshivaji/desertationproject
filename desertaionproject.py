@@ -130,7 +130,6 @@ def get_features_for_all(tickers, sma_windows, support_window):
     return pd.DataFrame(features_list)
 
 # ----------- RULE-BASED STRATEGY -----------
-
 # ----------- RULE-BASED STRATEGY -----------
 def predict_buy_sell_rule(df, rsi_buy=30, rsi_sell=70):
     if df.empty:
@@ -199,7 +198,9 @@ from sklearn.metrics import classification_report
 
 def train_rf_classifier(X, y):
     clf = RandomForestClassifier(n_estimators=200, random_state=42)
-    X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42, stratify=y)
+    X_train, X_test, y_train, y_test = train_test_split(
+        X, y, test_size=0.2, random_state=42, stratify=y
+    )
     clf.fit(X_train, y_train)
     preds = clf.predict(X_test)
     st.write("### Model Performance")
@@ -219,7 +220,7 @@ def predict_ml_signals(df, model):
 
 
 # ----------- STREAMLIT: ML SIGNALS TAB -----------
-elif strategy == "ML Signals":
+    elif strategy == "ML Signals":
     st.subheader("🤖 ML vs Rule-Based Signals")
 
     sma_w1 = st.sidebar.number_input("SMA Fast", value=20)
@@ -254,43 +255,44 @@ elif strategy == "ML Signals":
         import plotly.graph_objects as go
         fig = go.Figure()
 
-        fig.add_trace(go.Scatter(x=compare_df.index, y=compare_df["Close"], mode="lines", name="Close Price"))
+        fig.add_trace(go.Scatter(
+            x=compare_df.index, y=compare_df["Close"], mode="lines", name="Close Price"
+        ))
 
         # Rule-based markers
-        fig.add_trace(go.Scatter(x=compare_df[compare_df["Buy_Point"]].index,
-                                 y=compare_df[compare_df["Buy_Point"]]["Close"],
-                                 mode="markers", marker=dict(symbol="triangle-up", color="green", size=10),
-                                 name="Rule Buy"))
-        fig.add_trace(go.Scatter(x=compare_df[compare_df["Sell_Point"]].index,
-                                 y=compare_df[compare_df["Sell_Point"]]["Close"],
-                                 mode="markers", marker=dict(symbol="triangle-down", color="red", size=10),
-                                 name="Rule Sell"))
+        fig.add_trace(go.Scatter(
+            x=compare_df[compare_df["Buy_Point"]].index,
+            y=compare_df[compare_df["Buy_Point"]]["Close"],
+            mode="markers", marker=dict(symbol="triangle-up", color="green", size=10),
+            name="Rule Buy"
+        ))
+        fig.add_trace(go.Scatter(
+            x=compare_df[compare_df["Sell_Point"]].index,
+            y=compare_df[compare_df["Sell_Point"]]["Close"],
+            mode="markers", marker=dict(symbol="triangle-down", color="red", size=10),
+            name="Rule Sell"
+        ))
 
         # ML-based markers
-        fig.add_trace(go.Scatter(x=compare_df[compare_df["ML_Buy_Point"]].index,
-                                 y=compare_df[compare_df["ML_Buy_Point"]]["Close"],
-                                 mode="markers", marker=dict(symbol="star", color="blue", size=12),
-                                 name="ML Buy"))
-        fig.add_trace(go.Scatter(x=compare_df[compare_df["ML_Sell_Point"]].index,
-                                 y=compare_df[compare_df["ML_Sell_Point"]]["Close"],
-                                 mode="markers", marker=dict(symbol="x", color="orange", size=12),
-                                 name="ML Sell"))
+        fig.add_trace(go.Scatter(
+            x=compare_df[compare_df["ML_Buy_Point"]].index,
+            y=compare_df[compare_df["ML_Buy_Point"]]["Close"],
+            mode="markers", marker=dict(symbol="star", color="blue", size=12),
+            name="ML Buy"
+        ))
+        fig.add_trace(go.Scatter(
+            x=compare_df[compare_df["ML_Sell_Point"]].index,
+            y=compare_df[compare_df["ML_Sell_Point"]]["Close"],
+            mode="markers", marker=dict(symbol="x", color="orange", size=12),
+            name="ML Sell"
+        ))
 
         st.plotly_chart(fig, use_container_width=True)
         st.write(compare_df.tail(20))
 
 
-
-    # -------- Download --------
-    if 'preds_rule' in locals() and not preds_rule.empty:
-        st.download_button(
-            "📥 Download Rule-based Results",
-            preds_rule.to_csv(index=False).encode(),
-            "nifty500_rule_signals.csv",
-            "text/csv",
-        )
-
 st.markdown("⚠ Educational use only — not financial advice.")
+
 
 
 
