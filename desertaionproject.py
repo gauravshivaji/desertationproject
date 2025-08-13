@@ -8,34 +8,35 @@ import ta
 # CONFIG
 # ----------------------
 NIFTY500_TICKERS = [
-    "ABB.NS","ACC.NS","ADANIENT.NS","ADANIGREEN.NS","ADANIPORTS.NS",
-    "ADANITRANS.NS","ALKEM.NS","AMARAJABAT.NS","AMBER.NS","APOLLOHOSP.NS",
-    "APOLLOTYRE.NS","ASHOKLEY.NS","ASIANPAINT.NS","AUROPHARMA.NS","AXISBANK.NS",
-    "BAJAJ-AUTO.NS","BAJAJFINSV.NS","BAJFINANCE.NS","BALKRISIND.NS","BANDHANBNK.NS",
-    "BANKBARODA.NS","BANKINDIA.NS","BATAINDIA.NS","BEL.NS","BERGEPAINT.NS",
-    "BHARATFORG.NS","BHARTIARTL.NS","BHEL.NS","BIOCON.NS","BOSCHLTD.NS",
-    "BPCL.NS","BRITANNIA.NS","CADILAHC.NS","CANBK.NS","CASTROLIND.NS",
-    "CHOLAFIN.NS","CIPLA.NS","COALINDIA.NS","DEEPAKNTR.NS","DIVISLAB.NS",
-    "DLF.NS","DRREDDY.NS","EICHERMOT.NS","EQUITAS.NS","ESCORTS.NS",
-    "EXIDEIND.NS","FEDERALBNK.NS","GAIL.NS","GLENMARK.NS","GODREJCP.NS",
-    "GRASIM.NS","HAVELLS.NS","HCLTECH.NS","HDFC.NS","HDFCAMC.NS",
-    "HDFCBANK.NS","HDFCLIFE.NS","HEROMOTOCO.NS","HINDALCO.NS","HINDPETRO.NS",
-    "HINDUNILVR.NS","INDIGO.NS","INDUSINDBK.NS","INFRATEL.NS","INFY.NS",
-    "IOB.NS","IOC.NS","IRCTC.NS","ITC.NS","JINDALSTEL.NS",
-    "JSWSTEEL.NS","JUBLFOOD.NS","KOTAKBANK.NS","LTI.NS","LT.NS",
-    "LUPIN.NS","M&M.NS","MANAPPURAM.NS","MARICO.NS","MARUTI.NS",
-    "MCDOWELL-N.NS","NAUKRI.NS","NESTLEIND.NS","NMDC.NS","NTPC.NS",
-    "ONGC.NS","PAGEIND.NS","PETRONET.NS","PIDILITIND.NS","PNB.NS",
-    "POWERGRID.NS","RAMCOCEM.NS","RECLTD.NS","RELIANCE.NS","SAIL.NS",
-    "SBILIFE.NS","SBIN.NS","SHREECEM.NS","SIEMENS.NS","SRF.NS",
-    "SUNPHARMA.NS","SUNTV.NS","TATACHEM.NS","TATACONSUM.NS","TATAMOTORS.NS",
-    "TATASTEEL.NS","TCS.NS","TECHM.NS","TITAN.NS","UPL.NS",
-    "ULTRACEMCO.NS","WIPRO.NS","YESBANK.NS","ZEEL.NS"
+    "ABB.NS", "ACC.NS", "ADANIENT.NS", "ADANIGREEN.NS", "ADANIPORTS.NS",
+    "ADANITRANS.NS", "ALKEM.NS", "AMARAJABAT.NS", "AMBER.NS", "APOLLOHOSP.NS",
+    "APOLLOTYRE.NS", "ASHOKLEY.NS", "ASIANPAINT.NS", "AUROPHARMA.NS", "AXISBANK.NS",
+    "BAJAJ-AUTO.NS", "BAJAJFINSV.NS", "BAJFINANCE.NS", "BALKRISIND.NS", "BANDHANBNK.NS",
+    "BANKBARODA.NS", "BANKINDIA.NS", "BATAINDIA.NS", "BEL.NS", "BERGEPAINT.NS",
+    "BHARATFORG.NS", "BHARTIARTL.NS", "BHEL.NS", "BIOCON.NS", "BOSCHLTD.NS",
+    "BPCL.NS", "BRITANNIA.NS", "CADILAHC.NS", "CANBK.NS", "CASTROLIND.NS",
+    "CHOLAFIN.NS", "CIPLA.NS", "COALINDIA.NS", "DEEPAKNTR.NS", "DIVISLAB.NS",
+    "DLF.NS", "DRREDDY.NS", "EICHERMOT.NS", "EQUITAS.NS", "ESCORTS.NS",
+    "EXIDEIND.NS", "FEDERALBNK.NS", "GAIL.NS", "GLENMARK.NS", "GODREJCP.NS",
+    "GRASIM.NS", "HAVELLS.NS", "HCLTECH.NS", "HDFC.NS", "HDFCAMC.NS",
+    "HDFCBANK.NS", "HDFCLIFE.NS", "HEROMOTOCO.NS", "HINDALCO.NS", "HINDPETRO.NS",
+    "HINDUNILVR.NS", "INDIGO.NS", "INDUSINDBK.NS", "INFRATEL.NS", "INFY.NS",
+    "IOB.NS", "IOC.NS", "IRCTC.NS", "ITC.NS", "JINDALSTEL.NS",
+    "JSWSTEEL.NS", "JUBLFOOD.NS", "KOTAKBANK.NS", "LTI.NS", "LT.NS",
+    "LUPIN.NS", "M&M.NS", "MANAPPURAM.NS", "MARICO.NS", "MARUTI.NS",
+    "MCDOWELL-N.NS", "NAUKRI.NS", "NESTLEIND.NS", "NMDC.NS", "NTPC.NS",
+    "ONGC.NS", "PAGEIND.NS", "PETRONET.NS", "PIDILITIND.NS", "PNB.NS",
+    "POWERGRID.NS", "RAMCOCEM.NS", "RECLTD.NS", "RELIANCE.NS", "SAIL.NS",
+    "SBILIFE.NS", "SBIN.NS", "SHREECEM.NS", "SIEMENS.NS", "SRF.NS",
+    "SUNPHARMA.NS", "SUNTV.NS", "TATACHEM.NS", "TATACONSUM.NS", "TATAMOTORS.NS",
+    "TATASTEEL.NS", "TCS.NS", "TECHM.NS", "TITAN.NS", "UPL.NS",
+    "ULTRACEMCO.NS", "WIPRO.NS", "YESBANK.NS", "ZEEL.NS"
 ]
 
 # ----------------------
 # DATA FUNCTIONS
 # ----------------------
+@st.cache_data(show_spinner=False)
 def download_data_multi(tickers, period="2y", interval="1d"):
     try:
         df = yf.download(tickers, period=period, interval=interval, group_by="ticker", progress=False)
@@ -47,8 +48,10 @@ def download_data_multi(tickers, period="2y", interval="1d"):
 def compute_features(df, sma_windows=(20, 50, 200), support_window=30):
     df = df.copy()
     df["RSI"] = ta.momentum.RSIIndicator(df["Close"], window=14).rsi()
+
     for win in sma_windows:
         df[f"SMA{win}"] = df["Close"].rolling(window=win).mean()
+
     df["Support"] = df["Close"].rolling(window=support_window).min()
     df["RSI_Direction"] = df["RSI"].diff(5)
     df["Price_Direction"] = df["Close"].diff(5)
@@ -63,11 +66,9 @@ def get_latest_features_for_ticker(ticker_df, sma_windows, support_window):
         "Close": latest["Close"],
         "RSI": latest["RSI"],
         "Support": latest["Support"],
-        "SMA20": latest.get("SMA20", np.nan),
-        "SMA50": latest.get("SMA50", np.nan),
-        "SMA200": latest.get("SMA200", np.nan),
+        **{f"SMA{w}": latest.get(f"SMA{w}", np.nan) for w in sma_windows},
         "Bullish_Div": latest["Bullish_Div"],
-        "Bearish_Div": latest["Bearish_Div"],
+        "Bearish_Div": latest["Bearish_Div"]
     }
 
 def get_features_for_all(tickers, sma_windows, support_window):
@@ -78,13 +79,16 @@ def get_features_for_all(tickers, sma_windows, support_window):
     features_list = []
     for ticker in tickers:
         try:
+            if ticker not in multi_df.columns.get_level_values(0):
+                continue
             ticker_df = multi_df[ticker].dropna()
             if ticker_df.empty:
                 continue
             feats = get_latest_features_for_ticker(ticker_df, sma_windows, support_window)
             feats["Ticker"] = ticker
             features_list.append(feats)
-        except Exception:
+        except Exception as e:
+            st.warning(f"Skipping {ticker}: {e}")
             continue
     return pd.DataFrame(features_list)
 
@@ -148,7 +152,11 @@ if run_btn:
                     st.line_chart(chart_df[["Close", f"SMA{sma_w1}", f"SMA{sma_w2}", f"SMA{sma_w3}"]])
                     st.line_chart(chart_df[["RSI"]])
 
-            st.download_button("📥 Download Results", preds.to_csv(index=False).encode(), "nifty500_signals.csv", "text/csv")
+            st.download_button(
+                "📥 Download Results",
+                preds.to_csv(index=False).encode(),
+                "nifty500_signals.csv",
+                "text/csv"
+            )
 
 st.markdown("⚠ Disclaimer: Educational use only — not financial advice.")
-
