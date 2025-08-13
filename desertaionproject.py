@@ -331,7 +331,7 @@ st.title("📊 Nifty500 Buy/Sell Predictor (Rule-based + 🤖 ML)")
 with st.sidebar:
     st.header("Settings")
     selected_tickers = st.multiselect(
-        "Select stocks", NIFTY500_TICKERS, default=NIFTY500_TICKERS[:5]
+        "Select stocks", NIFTY500_TICKERS, default=NIFTY500_TICKERS[:500]
     )
     sma_w1 = st.number_input("SMA Window 1", 5, 250, 20)
     sma_w2 = st.number_input("SMA Window 2", 5, 250, 50)
@@ -464,5 +464,6 @@ if run_analysis:
         )
 
 st.markdown("⚠ Educational use only — not financial advice.")
+
 
 
