@@ -1,8 +1,10 @@
 import streamlit as st
 import yfinance as yf
 import pandas as pd
+from ta.momentum import RSIIndicator
+import plotly.graph_objects as go
 import numpy as np
-import ta
+from scipy.signal import argrelextrema
 
 
 # ----------------------
@@ -134,6 +136,7 @@ if st.sidebar.button("Run Analysis"):
         st.line_chart(df[["RSI"]])
 
 st.markdown("⚠ Disclaimer: This is for educational purposes only, not financial advice.")
+
 
 
 
