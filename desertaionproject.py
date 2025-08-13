@@ -39,19 +39,23 @@ NIFTY500_TICKERS = [
 @st.cache_data(show_spinner=False)
 def download_data_multi(tickers, period="2y", interval="1d"):
     try:
-        df = yf.download(tickers, period=period, interval=interval, group_by="ticker", progress=False)
-        return df
+        return yf.download(tickers, period=period, interval=interval, group_by="ticker", progress=False)
     except Exception as e:
         st.error(f"Download error: {e}")
         return None
 
 def prepare_close_series(df):
-    """Ensure Close column is a numeric 1D Series."""
+    """Ensure Close is numeric 1D Series regardless of Yahoo multi/single format."""
+    if "Close" not in df.columns:
+        return df
+
     if isinstance(df["Close"], pd.DataFrame):
+        # If multiple columns (multi-ticker), pick first column
         df["Close"] = df["Close"].iloc[:, 0]
+
+    # Now force numeric
     df["Close"] = pd.to_numeric(df["Close"], errors="coerce")
-    df = df.dropna(subset=["Close"])
-    return df
+    return df.dropna(subset=["Close"])
 
 def compute_features(df, sma_windows=(20, 50, 200), support_window=30):
     df = df.copy()
@@ -59,21 +63,16 @@ def compute_features(df, sma_windows=(20, 50, 200), support_window=30):
     if df.empty:
         return df
 
-    # RSI
     try:
         df["RSI"] = ta.momentum.RSIIndicator(df["Close"], window=14).rsi()
     except Exception as e:
         st.warning(f"RSI calc error: {e}")
         df["RSI"] = np.nan
 
-    # SMA
     for win in sma_windows:
         df[f"SMA{win}"] = df["Close"].rolling(window=win, min_periods=1).mean()
 
-    # Support
     df["Support"] = df["Close"].rolling(window=support_window, min_periods=1).min()
-
-    # Divergence
     df["RSI_Direction"] = df["RSI"].diff(5)
     df["Price_Direction"] = df["Close"].diff(5)
     df["Bullish_Div"] = (df["RSI_Direction"] > 0) & (df["Price_Direction"] < 0)
@@ -87,12 +86,12 @@ def get_latest_features_for_ticker(ticker_df, sma_windows, support_window):
         return None
     latest = df.iloc[-1]
     return {
-        "Close": latest["Close"],
-        "RSI": latest["RSI"],
-        "Support": latest["Support"],
+        "Close": latest.get("Close", np.nan),
+        "RSI": latest.get("RSI", np.nan),
+        "Support": latest.get("Support", np.nan),
         **{f"SMA{w}": latest.get(f"SMA{w}", np.nan) for w in sma_windows},
-        "Bullish_Div": latest["Bullish_Div"],
-        "Bearish_Div": latest["Bearish_Div"]
+        "Bullish_Div": latest.get("Bullish_Div", False),
+        "Bearish_Div": latest.get("Bearish_Div", False)
     }
 
 def get_features_for_all(tickers, sma_windows, support_window):
@@ -103,11 +102,14 @@ def get_features_for_all(tickers, sma_windows, support_window):
     features_list = []
     for ticker in tickers:
         try:
-            if ticker not in multi_df.columns.get_level_values(0):
-                continue
-            ticker_df = multi_df[ticker].dropna()
+            if ticker in multi_df.columns.get_level_values(0):
+                ticker_df = multi_df[ticker].dropna()
+            else:
+                ticker_df = multi_df.dropna()
+
             if ticker_df.empty:
                 continue
+
             feats = get_latest_features_for_ticker(ticker_df, sma_windows, support_window)
             if feats:
                 feats["Ticker"] = ticker
@@ -115,6 +117,7 @@ def get_features_for_all(tickers, sma_windows, support_window):
         except Exception as e:
             st.warning(f"Skipping {ticker}: {e}")
             continue
+
     return pd.DataFrame(features_list)
 
 # ----------------------
