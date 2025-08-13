@@ -36,37 +36,41 @@ NIFTY500_TICKERS = [
 # ----------------------
 # DATA FUNCTIONS
 # ----------------------
+
 @st.cache_data(show_spinner=False)
 def download_data_multi(tickers, period="2y", interval="1d"):
     try:
-        return yf.download(tickers, period=period, interval=interval, group_by="ticker", progress=False)
+        df = yf.download(tickers, period=period, interval=interval, group_by="ticker", progress=False)
+        return df
     except Exception as e:
         st.error(f"Download error: {e}")
         return None
 
 def prepare_close_series(df):
-    """Ensure Close is a clean 1D Series regardless of Yahoo multi/single format."""
-    if "Close" not in df.columns:
-        return df
-    if isinstance(df["Close"], pd.DataFrame):
-        df["Close"] = df["Close"].iloc[:, 0]
-    return df.dropna(subset=["Close"])
+    # If grouped multi-ticker df, columns are MultiIndex
+    if isinstance(df.columns, pd.MultiIndex):
+        # Sometimes only one ticker or fallback to single-level columns
+        if "Close" in df.columns.get_level_values(1):
+            # Return DataFrame with Close prices only for first ticker column
+            # But better handled in main code per ticker
+            return df
+    elif "Close" in df.columns:
+        # Single ticker df
+        return df.dropna(subset=["Close"])
+    return df
 
 def compute_features(df, sma_windows=(20, 50, 200), support_window=30):
     df = df.copy()
     df = prepare_close_series(df)
     if df.empty:
         return df
-
     try:
         df["RSI"] = ta.momentum.RSIIndicator(df["Close"], window=14).rsi()
     except Exception as e:
-        st.warning(f"RSI calc error: {e}")
+        st.warning(f"RSI calculation error: {e}")
         df["RSI"] = np.nan
-
     for win in sma_windows:
         df[f"SMA{win}"] = df["Close"].rolling(window=win, min_periods=1).mean()
-
     df["Support"] = df["Close"].rolling(window=support_window, min_periods=1).min()
     df["RSI_Direction"] = df["RSI"].diff(5)
     df["Price_Direction"] = df["Close"].diff(5)
@@ -78,45 +82,49 @@ def get_latest_features_for_ticker(ticker_df, sma_windows, support_window):
     df = compute_features(ticker_df, sma_windows, support_window)
     if df.empty:
         return None
+    df = df.dropna(subset=["Close", "RSI", f"SMA{sma_windows[0]}", f"SMA{sma_windows[1]}", f"SMA{sma_windows[2]}", "Support", "Bullish_Div", "Bearish_Div"])
+    if df.empty:
+        return None
     latest = df.iloc[-1]
     return {
-        "Close": latest.get("Close", np.nan),
-        "RSI": latest.get("RSI", np.nan),
-        "Support": latest.get("Support", np.nan),
+        "Close": latest["Close"],
+        "RSI": latest["RSI"],
+        "Support": latest["Support"],
         **{f"SMA{w}": latest.get(f"SMA{w}", np.nan) for w in sma_windows},
-        "Bullish_Div": latest.get("Bullish_Div", False),
-        "Bearish_Div": latest.get("Bearish_Div", False)
+        "Bullish_Div": latest["Bullish_Div"],
+        "Bearish_Div": latest["Bearish_Div"]
     }
 
 def get_features_for_all(tickers, sma_windows, support_window):
     multi_df = download_data_multi(tickers)
     if multi_df is None or multi_df.empty:
         return pd.DataFrame()
-
     features_list = []
+    available_tickers = multi_df.columns.get_level_values(0).unique().tolist() if isinstance(multi_df.columns, pd.MultiIndex) else []
     for ticker in tickers:
         try:
-            if ticker in multi_df.columns.get_level_values(0):
+            if isinstance(multi_df.columns, pd.MultiIndex) and ticker in available_tickers:
                 ticker_df = multi_df[ticker].dropna()
-            else:
+            elif not isinstance(multi_df.columns, pd.MultiIndex):
                 ticker_df = multi_df.dropna()
-
+            else:
+                # Ticker missing or no data
+                continue
             if ticker_df.empty:
                 continue
-
             feats = get_latest_features_for_ticker(ticker_df, sma_windows, support_window)
             if feats:
                 feats["Ticker"] = ticker
                 features_list.append(feats)
         except Exception as e:
-            st.warning(f"Skipping {ticker}: {e}")
+            st.warning(f"Skipping {ticker} due to error: {e}")
             continue
-
     return pd.DataFrame(features_list)
 
 # ----------------------
 # STRATEGY
 # ----------------------
+
 def predict_buy_sell(df, rsi_buy=30, rsi_sell=70):
     results = df.copy()
     results["Buy_Point"] = (
@@ -137,6 +145,7 @@ def predict_buy_sell(df, rsi_buy=30, rsi_sell=70):
 # ----------------------
 # UI
 # ----------------------
+
 st.set_page_config(page_title="Nifty500 Interactive Stock Predictor", layout="wide")
 st.title("📊 Nifty500 Interactive Stock Buy/Sell Predictor")
 
@@ -159,27 +168,26 @@ if run_btn:
         else:
             preds = predict_buy_sell(feats, rsi_buy, rsi_sell)
             tab1, tab2, tab3 = st.tabs(["✅ Buy Signals", "❌ Sell Signals", "📈 Charts"])
-
             with tab1:
                 st.dataframe(preds[preds["Buy_Point"]])
-
             with tab2:
                 st.dataframe(preds[preds["Sell_Point"]])
-
             with tab3:
                 ticker_chart = st.selectbox("Select Ticker for Chart", selected_tickers)
-                chart_df = yf.download(ticker_chart, period="6mo", interval="1d", progress=False)
-                if not chart_df.empty:
-                    chart_df = compute_features(chart_df, (sma_w1, sma_w2, sma_w3), support_window)
+                if ticker_chart:
+                    chart_df = yf.download(ticker_chart, period="6mo", interval="1d", progress=False)
                     if not chart_df.empty:
+                        chart_df = compute_features(chart_df, (sma_w1, sma_w2, sma_w3), support_window)
                         st.line_chart(chart_df[["Close", f"SMA{sma_w1}", f"SMA{sma_w2}", f"SMA{sma_w3}"]])
                         st.line_chart(chart_df[["RSI"]])
+                    else:
+                        st.warning(f"No chart data available for {ticker_chart}")
 
-            st.download_button(
-                "📥 Download Results",
-                preds.to_csv(index=False).encode(),
-                "nifty500_signals.csv",
-                "text/csv"
-            )
+    st.download_button(
+        "📥 Download Results",
+        preds.to_csv(index=False).encode(),
+        "nifty500_signals.csv",
+        "text/csv"
+    )
 
 st.markdown("⚠ Disclaimer: Educational use only — not financial advice.")
