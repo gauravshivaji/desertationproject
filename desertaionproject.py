@@ -1,5 +1,3 @@
--------------------
-
 import streamlit as st
 import yfinance as yf
 import pandas as pd
@@ -153,3 +151,4 @@ if run_btn:
             st.download_button("📥 Download Results", preds.to_csv(index=False).encode(), "nifty500_signals.csv", "text/csv")
 
 st.markdown("⚠ Disclaimer: Educational use only — not financial advice.")
+
