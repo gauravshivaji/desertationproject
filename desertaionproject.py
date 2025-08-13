@@ -45,7 +45,7 @@ def compute_features(df, sma_windows=(20,50,200), support_window=30):
     or df["Close"].empty
     or df["Close"].isna().all().item() if hasattr(df["Close"].isna().all(), 'item') else df["Close"].isna().all()
 ):
-    return df
+  
 
     df = df.copy()
     df["RSI"] = ta.momentum.RSIIndicator(df["Close"], window=14).rsi()
@@ -165,4 +165,5 @@ if run_analysis:
     )
 
 st.markdown("⚠ Educational use only — not financial advice.")
+
 
