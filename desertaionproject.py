@@ -39,24 +39,33 @@ def download_data_multi(tickers, period="2y", interval="1d"):
     except Exception:
         return None
 
-def compute_features(df, sma_windows=(20,50,200), support_window=30):
-    if (
-    "Close" not in df.columns
-    or df["Close"].empty
-    or df["Close"].isna().all().item() if hasattr(df["Close"].isna().all(), 'item') else df["Close"].isna().all()
-):
-  
+def compute_features(df, sma_windows=(20, 50, 200), support_window=30):
+    # Ensure 'Close' column exists and is valid
+    if "Close" not in df.columns or df["Close"].empty or bool(df["Close"].isna().all()):
+        return df  # Return as is if no valid data
 
     df = df.copy()
+
+    # RSI
     df["RSI"] = ta.momentum.RSIIndicator(df["Close"], window=14).rsi()
+
+    # SMA calculations
     for win in sma_windows:
         df[f"SMA{win}"] = df["Close"].rolling(window=win, min_periods=1).mean()
+
+    # Support level (rolling min)
     df["Support"] = df["Close"].rolling(window=support_window, min_periods=1).min()
+
+    # Divergence features
     df["RSI_Direction"] = df["RSI"].diff(5)
     df["Price_Direction"] = df["Close"].diff(5)
     df["Bullish_Div"] = (df["RSI_Direction"] > 0) & (df["Price_Direction"] < 0)
     df["Bearish_Div"] = (df["RSI_Direction"] < 0) & (df["Price_Direction"] > 0)
+
     return df
+
+    
+    
 
 def get_latest_features_for_ticker(ticker_df, ticker, sma_windows, support_window):
     df = compute_features(ticker_df, sma_windows, support_window).dropna()
@@ -165,5 +174,6 @@ if run_analysis:
     )
 
 st.markdown("⚠ Educational use only — not financial advice.")
+
 
 
